@@ -1,7 +1,10 @@
 """
 Project: Covid Risk Analysis
 Author: Ryder Davidson
-Date: 11.01.21
+
+A simple console program allowing a user to query what the COVID-19 risk level will
+be in a given U.S. state/territory x number of days in the future, where x is [1,7].
+The metric used to determine state risk level is based CDC community spread guidelines.
 """
 
 import datetime
@@ -17,6 +20,7 @@ class ANN(nn.Module):
     """
     A class used to create a simple feed-forward neural network
     """
+
     def __init__(self):
         super().__init__()
         self.fc1 = nn.Linear(in_features=8, out_features=32)
@@ -32,17 +36,11 @@ class ANN(nn.Module):
 
 def risk_level(case_metric):
     """
-    Switch statement to grade covid risk-level given cases per 100,000
+    Switch statement helper function to grade covid risk-level given cases per 100,000.
 
-    Parameters
-    ----------
-    case_metric : float
-        Number of covid cases per 100,000 people
+    :param case_metric: (float) Number of covid cases per 100,000 people
 
-    Return
-    ------
-    int
-        Risk level (0-4 inclusive) of given input conditions
+    :return: (int) Risk level (0-4 inclusive) of given input conditions
     """
 
     if case_metric < 1:
@@ -58,12 +56,18 @@ def risk_level(case_metric):
 
 
 def risk_analysis(query_state, query_day, training_epochs):
+    """
+    Function to determine projected covid risk within a given state.
+
+    :param query_state: (str) 2-3 letter state or U.S. territory abbreviation
+    :param query_day: (int) number of days [1, 7] in the future to project covid risk
+    :param training_epochs: (int) number of epochs the neural network should iterate through
+
+    :return: [int, float] an integer corresponding to the projected risk and a float corresponding to NN loss func.
+    """
     pd.set_option('display.max_columns', None)
 
     # --- read in covid19 data and state population data --- #
-    qstate = query_state
-    qday = query_day
-    epochs = training_epochs
     limit = '?$limit=50000'
 
     pd.options.mode.chained_assignment = None
@@ -73,6 +77,12 @@ def risk_analysis(query_state, query_day, training_epochs):
 
     df_covid = pd.read_json(url_covid_stats)
     df_pop = pd.read_json(url_pop_stats)
+
+    assert ((query_day > 0) and (query_day < 8)), "query day must be between 1 and 7 inclusive"
+    assert query_state in list(df_pop['state']), "query state is not a valid label"
+    qstate = query_state
+    qday = query_day
+    epochs = training_epochs
 
     # --- use only cols: date, state, new_case, new_death data
     # --- sort the resulting dataframe by date (since 01/22/20)
@@ -122,8 +132,6 @@ def risk_analysis(query_state, query_day, training_epochs):
     query_row = query_row.fillna(0)
     scaled_df = scaled_df.dropna()
     scaled_df = scaled_df.append(query_row, ignore_index=True)
-
-    print(scaled_df)
 
     for column in scaled_df.drop([col_title], axis=1).columns:
         scaled_df[column] = (
@@ -180,5 +188,26 @@ def risk_analysis(query_state, query_day, training_epochs):
     return return_arr
 
 
-x = risk_analysis('NYC', 2, 2000)
-print(x)
+# --- console program for user queries (used to illustrate NN functionality)
+
+input_values = ["", 0, 0]
+continue_query = True
+print("Projected COVID-19 Risk by State and Number-Of-Days\n")
+while continue_query:
+    input_values[0] = input("Input 2-3 letter state abbreviation e.g. CA: ")
+    input_values[1] = input("Input number of days in the future to project: ")
+    input_values[2] = input("Input number of epochs for neural network: ")
+
+    returned_values = risk_analysis(input_values[0], int(input_values[1]), int(input_values[2]))
+    print("COVID-19 Risk in " + input_values[0] + " in " + input_values[1] + " day(s) is: " + str(returned_values[0]))
+    print("(loss = " + str(returned_values[1]) + ")")
+
+    temp = input("\nAnother Query? y/n ")
+    if temp == 'y':
+        continue_query = True
+    elif temp == 'n':
+        continue_query = False
+    else:
+        print("invalid input")
+        break
+    print()
